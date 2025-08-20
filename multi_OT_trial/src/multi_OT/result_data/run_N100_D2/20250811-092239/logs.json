@@ -1,0 +1,20 @@
+{
+  "space_dim": 2,
+  "axis_dim": 100,
+  "reg": 0.3,
+  "run_full": false,
+  "N_theta": 21,
+  "smoothing_sigma": 5,
+  "mu_hash": "6485f685be703ebefc974a5ba28e829492d29eed9bde9cb5307500d4ff1219ff",
+  "nu_hash": "89dca0bf82c5b8509a82f6ba2f08004e663cf6ee788f7516dd09b6f23a50ef1e",
+  "run_name": "run_N100_D2",
+  "niter": 37100,
+  "time": 24347.28950691223,
+  "opt_method": "sinkhorn_log",
+  "timestamp": "20250811-092239",
+  "cost_shape": [
+    8531,
+    3988
+  ],
+  "total_cost": 1413.2484074708414
+}
