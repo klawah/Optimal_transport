@@ -78,3 +78,56 @@ def interpolate_sparse_OT(P,mu_coords,nu_coords,theta_seq,space_shape):
         sparse_sequence.append([coords_sparse, values_sparse])
 
     return sparse_sequence
+
+def interpolate_sparse_OT_from_sparse(P_sparse, mu_coords, nu_coords, theta_seq, space_shape):
+    """
+    Interpolate along sparse OT transport plan without densifying P.
+
+    Parameters
+    ----------
+    P_sparse : [indices, values]
+        - indices: (M, 2) array of [i, j] pairs for nonzero transport
+        - values : (M,) array of transported masses
+    mu_coords : (M_mu, D) array
+        Source support coordinates
+    nu_coords : (M_nu, D) array
+        Target support coordinates
+    theta_seq : list or array
+        Sequence of interpolation parameters in [0, 1]
+    space_shape : tuple
+        Shape of the grid in each dimension (e.g. (N, N) or (N, N, N))
+
+    Returns
+    -------
+    sparse_sequence : list
+        Each element is [coords_sparse, values_sparse], where
+        - coords_sparse: (K, D) array of support points at that interpolation step
+        - values_sparse: (K,) array of masses at those points
+    """
+
+    indices, values = P_sparse
+    src_idx, tgt_idx = indices[:,0], indices[:,1]
+
+    D = mu_coords.shape[1]
+    shape = np.array(space_shape)
+    N_theta = len(theta_seq)
+
+    sparse_sequence = []
+
+    for theta in theta_seq:
+        # Barycentric interpolation of coordinates
+        itp_coords = (1 - theta) * mu_coords[src_idx] + theta * nu_coords[tgt_idx]
+        itp_coords = np.clip(np.round(itp_coords).astype(int), 0, shape - 1)
+
+        # Collapse duplicate coordinates
+        flat_idx, inv = np.unique(
+            np.ravel_multi_index(itp_coords.T, dims=space_shape),
+            return_inverse=True
+        )
+        values_sparse = np.bincount(inv, weights=values)
+
+        coords_sparse = np.array(np.unravel_index(flat_idx, shape=space_shape)).T
+
+        sparse_sequence.append([coords_sparse, values_sparse])
+
+    return sparse_sequence

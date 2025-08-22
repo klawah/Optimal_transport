@@ -11,12 +11,12 @@ import time
 
 def main():
 
-    D = 3 # Spacial dimension
+    D = 2 # Spacial dimension
     
     # Signal parameters 
     if D == 2:
         mu_parameters = [
-            {'amplitude': 0.7, 'fc': [0.35,-0.3], 'damping': 0}, 
+            {'amplitude': 0.7, 'fc': [0.3,-0.3], 'damping': 0}, 
             {'amplitude': 0.5, 'fc': [0.2,-0.1], 'damping': 0.0},
             {'amplitude': 1.1, 'fc': [-0.2,0.3], 'damping': 0}
         ]
@@ -35,7 +35,7 @@ def main():
             {'amplitude': 1, 'fc': [-0.3,-0.20,-0.1], 'damping': 0} 
         ]
 
-    multiscale_ot = OT_scaler(D,[60,30,10,5])
+    multiscale_ot = OT_scaler(D,[100,20,5])
     multiscale_ot.thresholded_multiscale_OT(mu_parameters,nu_parameters)
 
 def check_single_point_mass(P,mu= None,nu= None):
