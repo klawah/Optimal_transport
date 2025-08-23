@@ -29,8 +29,8 @@ def main():
         ]
     if D == 3:
         mu_parameters = [
-        {'amplitude': 2, 'fc': [-0.3,0.05,-0.1], 'damping': 0},
-        {'amplitude': 1, 'fc': [0.3,0.25,0.45], 'damping': 0}
+        {'amplitude': 0.7, 'fc': [-0.3,0.05,-0.1], 'damping': 0},
+        {'amplitude': 0.5, 'fc': [0.3,0.25,0.45], 'damping': 0}
         ]
 
         nu_parameters = [
@@ -38,8 +38,12 @@ def main():
         {'amplitude': 0.5, 'fc': [-0.3,-0.20,-0.1], 'damping': 0} 
         ]
 
+    generation_start = time.time()
+    print('Generating signals.')
     mu_original = signal.generate_multi_dimensional_sinusoid(D, N, mu_parameters) # shape((N,)*D)
     nu_original = signal.generate_multi_dimensional_sinusoid(D, N, nu_parameters) # shape((N,)*D)
+    generation_stop = time.time()
+    print('Generation took: ', generation_stop-generation_start , ' seconds.')
     space_shape = np.shape(mu_original)
     print(f"Shape of the original signal: {space_shape}")
 
@@ -49,8 +53,6 @@ def main():
     multiscale_ot = multiscale_sinkhorn(D,mu_original,nu_original,sizes)
 
     ot_original = multiscale_ot[-1]
-
-    print(np.sum(multiscale_ot[0][0][1]))
     
     print(f"Original OT cost: {total_cost(ot_original[0], ot_original[1], ot_original[2])}")
     
@@ -116,8 +118,6 @@ def multiscale_sinkhorn(D,mu_original,nu_original,sizes):
     # Initiate a list of transport plans for each level with the core level transport plan as thhe first element
     P_levels = [[[P_indices_core, P_values_core],source_mass_coords,target_mass_coords]]
 
-    print('sum', np.sum(P_values_core))
-
     # Iterate through the levels of the multiscale OT
     for i in range(num_levels):
         # Set the current level scaling factors 
@@ -140,9 +140,6 @@ def multiscale_sinkhorn(D,mu_original,nu_original,sizes):
         
         # Add the fine level transport plan to the list of transport plans
         P_levels.append([P_fine,mu_coords_fine,nu_coords_fine])
-
-
-        print(time.time() - start)
     
     end = time.time() # end time for entire optimisation
     elapsed = end - start # total time for optimisation
@@ -185,7 +182,7 @@ def core_level_OT(mu_core,nu_core,N_core,D):
     nu_core_coords,nu_core_values = nonzero_indices_and_values(nu_core,threshold_core)
 
     # Perform the core level OT
-    P_core, source_mass_coords, target_mass_coords = ot.sinkhorn_sparse(mu_core_coords,mu_core_values,nu_core_coords,nu_core_values) 
+    P_core, source_mass_coords, target_mass_coords = ot.sinkhorn_log(mu_core_coords,mu_core_values,nu_core_coords,nu_core_values) 
 
     # Reformat the transport plan P_core to get the indices and values
     P_indices_core, P_values_core = nonzero_indices_and_values(np.array(P_core), threshold_core)
@@ -263,11 +260,12 @@ def inter_level_OT(P_coarse,mu_coords_coarse,nu_coords_coarse,mu_original,nu_ori
             if source_mass == 0 or target_mass == 0 or source_target_mass == 0:
                 continue
 
-            source_mass_ratio = source_target_mass / source_mass # Ratio of the total mass from the current source point that is transported over the current path
-            target_mass_ratio = source_target_mass / target_mass # Ratio of the total mass to the current target point that is transported over the current path
+            # Relative transport masses for the current path (mu_values_fine = nu_values_fine = source_target_mass)
+            mu_values_fine = mu_values_fine / mu_values_fine.sum() * source_target_mass
+            nu_values_fine = nu_values_fine / nu_values_fine.sum() * source_target_mass
 
             # Perform the fine-level OT between the fine source and target blocks
-            P, mu_coords, nu_coords,log = ot.sinkhorn_sparse(mu_coords_fine,mu_values_fine*source_mass_ratio,nu_coords_fine,nu_values_fine*target_mass_ratio,return_log=True)
+            P, mu_coords, nu_coords,log = ot.sinkhorn_log(mu_coords_fine,mu_values_fine,nu_coords_fine,nu_values_fine,return_log=True)
             
             # Add the fine-level block transport plan to the lists 
             P_fine.append(P)
@@ -312,7 +310,7 @@ def accumulate_fine_transport(P_blocks, mu_coords_blocks, nu_coords_blocks):
     nu_offset = 0
     # Iterate through each block transport plan and map local indices to global indices
     for block_idx, P in enumerate(P_blocks):
-        indices, values = nonzero_indices_and_values(P) # Get non-zero entries of the block transport plan
+        indices, values = nonzero_indices_and_values(P,normalise=False) # Get non-zero entries of the block transport plan
         for (i_local, j_local), val in zip(indices, values): # Local indices within the block
             global_i = mu_idx_map[mu_offset + i_local] # Map to global index using the reverse mapping
             global_j = nu_idx_map[nu_offset + j_local] # Map to global index using the reverse mapping
@@ -323,6 +321,7 @@ def accumulate_fine_transport(P_blocks, mu_coords_blocks, nu_coords_blocks):
     
     P_indices = np.array(P_indices, dtype=int)
     P_values = np.array(P_values, dtype=float)
+    P_values /= np.sum(P_values)
 
     if P_indices.size == 0:
         # Nothing transported at this level
@@ -391,7 +390,7 @@ def compute_adaptive_threshold(P, N, D, top_percentile=80, min_ratio=0.05):
 
     return max(min_threshold,threshold)
 
-def nonzero_indices_and_values(A, threshold = 1e-6):
+def nonzero_indices_and_values(A, threshold = 1e-6, normalise = True):
     """
     Retrieve the indices and values of all non-zero entries of a sparse array A.
     The values are normalized to sum to 1.
@@ -418,13 +417,40 @@ def nonzero_indices_and_values(A, threshold = 1e-6):
         return np.empty((0, A.ndim), dtype=int), np.array([], dtype=float)
     
     values = A[tuple(indices.T)] # get associated values of non-zero entries
-    values /= np.sum(values)  # Normalize values to sum to 1
 
+    if normalise:
+        values /= np.sum(values)  # Normalize values to sum to 1
+        return indices, values
+    
     return indices, values
 
 def nonzero_fine_block(coarse_coord, scaling_factor, cumulative_scaling, psd_original, threshold):
+    """
+    Retrieve the fine-grid support points from the block of fine coordinates corresponding to a given coarse support coordinate.
+
+    Parameters
+    ----------
+    coarse_coord : array, shape (D,)
+        Coordinate of the coarse support point in D dimensions.
+    scaling_factor : int or array_like, shape (D,)
+        Upsampling factor from coarse to fine grid. If scalar, applied equally across dimensions.
+    cumulative_scaling : int or array_like, shape (D,)
+        Cumulative scaling factor to map fine-grid coordinates to the original full-resolution space.
+    psd_original : ndarray, shape ((N,)*D)
+        Original high-resolution distribution (e.g., PSD) from which fine-grid masses are drawn.
+    threshold : float
+        Minimum relative threshold for retaining mass. Values below `threshold * scaling_factor[0]` 
+        are treated as noise and discarded.
+
+    Returns
+    -------
+    coords : ndarray, shape (M, D)
+        Coordinates of fine-grid support points corresponding to the coarse point.
+    values : ndarray, shape (M,)
+        Mass values at the corresponding coordinates, aligned with `coords`.
+        If no values exceed the threshold, both outputs are empty arrays.
+    """
     coarse_coord = np.array(coarse_coord)
-    print(np.shape(coarse_coord))
     if np.isscalar(scaling_factor):
         scaling_factor = np.full_like(coarse_coord, scaling_factor)
     else:
@@ -443,7 +469,7 @@ def nonzero_fine_block(coarse_coord, scaling_factor, cumulative_scaling, psd_ori
             coords_list.append(coord)
             values_list.append(val)
     
-    if coords_list:
+    if len(coords_list) > 0:
         return np.array(coords_list), np.array(values_list)
     else:
         return np.empty((0, len(coarse_coord))), np.empty((0,))

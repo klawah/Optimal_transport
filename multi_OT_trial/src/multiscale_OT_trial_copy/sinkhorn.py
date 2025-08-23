@@ -63,7 +63,7 @@ def main():
 
 ########## Sinkhorn functions ##########
 
-def sinkhorn(mu_coords,mu_values, nu_coords,nu_values, epsilon = 1e-2, max_iter = 5000, tol = 1e-3, return_log = False):
+def sinkhorn(mu_coords,mu_values, nu_coords,nu_values, epsilon = 1e-1, max_iter = 5000, tol = 1e-3, return_log = False):
     """
     Entropy reguralised optimal transport using the sinkhorn-knopp algorithm for 
     sparse sourse and target distributions with M_mu and M_nu support points.
@@ -131,7 +131,7 @@ def sinkhorn(mu_coords,mu_values, nu_coords,nu_values, epsilon = 1e-2, max_iter 
         return P, mu_coords, nu_coords, log
     return P, mu_coords, nu_coords
 
-def sinkhorn_log(mu_coords, mu_values, nu_coords, nu_values, epsilon = 1, max_iter = 5000, tol = 1e-3, return_log = False):
+def sinkhorn_log(mu_coords, mu_values, nu_coords, nu_values, epsilon = 1e-1, max_iter = 5000, tol = 1e-3, return_log = False):
     """
     Entropy reguralised optimal transport using the logarithmic sinkhorn algorithm for 
     sparse sourse and target distributions with M_mu and M_nu support points.
@@ -201,7 +201,7 @@ def sinkhorn_log(mu_coords, mu_values, nu_coords, nu_values, epsilon = 1, max_it
         return P, mu_coords, nu_coords, log
     return P, mu_coords, nu_coords
 
-def sinkhorn_sparse(mu_coords,mu_values, nu_coords,nu_values, epsilon=1e-2, max_iter=5000, tol = 1e-3, return_log=False):
+def sinkhorn_sparse(mu_coords, mu_values, nu_coords, nu_values, epsilon=1e-1, max_iter=5000, tol = 1e-3, return_log=False):
     """
     Entropy reguralised optimal transport using the sinkhorn-knopp algorithm for 
     sparse sourse and target distributions with M_mu and M_nu support points. Differs 
